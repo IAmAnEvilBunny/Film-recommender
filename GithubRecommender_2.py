@@ -47,28 +47,22 @@ def main(movie_file, ratings_file, n_features):
     # Films
     # Read in film names and ids
     # Change read in method ?
-    print('boop1')
     file = open(movie_file, encoding="utf8")
-    print('boop2')
     Films = np.loadtxt(file, delimiter=',', dtype='str', skiprows=1,
                        usecols=(1))
-    print('boop3')
 
     file = open(movie_file, encoding="utf8")
-    print('boop4')
     ids = np.loadtxt(file, delimiter=',', dtype='int', skiprows=1, usecols=(0))
-    print('boop5')
 
     # Read in ratings
     # Column 0 indicates user index, column 1 the film index and column 2
     # indicates rating, on a scale from 0 to 5.
     file = open(ratings_file, encoding="utf8")
-    print('boop6')
+    print('Uploading ratings...')
     ratings = np.loadtxt(file, delimiter=',', dtype='float', usecols=(0, 1, 2),
                          skiprows=1, max_rows=3000000)
     del file
-    print('boop7')
-
+    print('Ratings uploaded')
 
     # Divide data into training set, cross validation set and test set
     ratings, cv_ratings, test_ratings = divide_data(ratings, 20, 10)
@@ -76,33 +70,34 @@ def main(movie_file, ratings_file, n_features):
     # Useful values
     n_films = len(Films)  # Number of different films
     users = int(ratings[-1, 0]) + 1  # Number of users
-    print('n_films, n_users')
-    print(n_films)
-    print(users)
-    #n_features = 10  # Number of features
+    print('Initial data contains ratings for {} films across {} users'.format(
+            n_films, users))
 
     # Reindex films
     ratings[:, 1] = reindex(n_films, ratings[:, 1], ids)
 
     # Add in my ratings, I will be user 0, this also means we can start
     # indexing from 0
-    # Add an add my ratings function ?
     my_ratings = specify_my_ratings(n_films, Films)
-    i_rated = np.where(my_ratings != 0)[0]
+    i_rated = np.where(my_ratings != 0)[0]  # Indices of films I rated
 
+    # Add a column of zeros to specify I am user 0, and add film indices
     my_ratings = np.c_[np.zeros(len(i_rated)), i_rated, my_ratings[i_rated]]
+
+    # Add my ratings to the ratings matrix
     ratings = np.r_[my_ratings, ratings]
 
-    # Obtain R_mat and rating_mat
-    print('boop8')
+    # Obtain R_mat and rating_mat...
+    # ...for training set...
+    print('Creating training set rating matrices...')
     R_mat, rating_mat = R_and_rating_mat(ratings, ids, n_films, users)
-    print('boop9')
     del ratings
 
-    # Obtain rating_matrix for cv set
+    # ...and for cv set
+    print('Creating training set rating matrices...')
     cv_R_mat, cv_rating_mat = R_and_rating_mat(cv_ratings, ids, n_films, users)
 
-    # Compress data
+    # Compress data (remove data corresponding to films with very few ratings)
     Films, ids, R_mat, rating_mat, cv_R_mat, cv_rating_mat =\
         compress(R_mat, rating_mat, cv_R_mat, cv_rating_mat, Films, ids)
 
@@ -114,7 +109,6 @@ def main(movie_file, ratings_file, n_features):
     # Normalise the ratings matrix and obtain the mean score for each film,
     # as well as the total number of people who rated each film
     rating_mat, means_mat, rated_sums = normalise_ratings(R_mat, rating_mat)
-    print(rated_sums)
 
     # Initialise parameters (feature matrix and theta)
     parameters0 = param_init(n_films, n_features, users)
@@ -130,8 +124,10 @@ def main(movie_file, ratings_file, n_features):
                                 jac=vec_gradients,
                                 tol=2)
 
+    # blabla
     X_opt, theta_opt = unpack(Optimised_params.x, users, n_films, n_features)
 
+    # Obtain our predictions
     predictions = X_opt @ theta_opt.T
 
     cv_rating_mat -= cv_R_mat * means_mat
@@ -218,18 +214,16 @@ def divide_data(ratings, cv_pc, test_pc):
     # Repeat process with test indices
     test_indices = random.sample(range(n_ratings), n_test)
     test_ratings = ratings[test_indices, :]
-    ratings = np.delete(ratings, test_indices, axis = 0)
+    ratings = np.delete(ratings, test_indices, axis=0)
 
-    print('final portions')
-    print(n_ratings)
-    print(n_cv)
-
+    print('Created a training set with {} ratings and a cross-validation\
+          set with {} ratings'.format(n_ratings, n_cv))
 
     return ratings, cv_ratings, test_ratings
 
 
 def cost(Parameters, Y, R, users, films, features, reg_lambda):
-    # Cost function, this is the function we will be minimising
+    # Cost function : this is the function we will be minimising
 
     # Unpack parameters
     X, theta = unpack(Parameters, users, films, features)
@@ -355,7 +349,9 @@ def R_and_rating_mat(ratings, ids, n_films, users):
 
 def reindex(n_films, old_indices, ids):
     # Reindexes films from their id to a number between 0 and n_films-1
+    # There is probably a much better way to do this
     print('reindexing ' + str(n_films) + ' films')
+
     for index in tqdm(range(n_films)):
         old_indices[old_indices == ids[index]] = index
 
@@ -381,13 +377,12 @@ def normalise_ratings(R_mat, rating_mat):
     return rating_mat, means_mat, rated_sums
 
 
-def mean_squared_error(prediction_mat, R_mat, rating_mat, bounds = False):
-    # Calculates the mean squared error of predictions we obtain
+def mean_squared_error(prediction_mat, R_mat, rating_mat, bounds=False):
+    # Calculates the mean squared error of the predictions we obtain
     n_ratings = np.sum(R_mat)
-    #print(n_ratings)
-    print(predictions - rating_mat)
     
     if bounds:
+        # Max rating is 5 stars, min is half a star
         print(prediction_mat*R_mat)
         print(rating_mat)
         prediction_mat[prediction_mat > 5] = 5
@@ -398,8 +393,18 @@ def mean_squared_error(prediction_mat, R_mat, rating_mat, bounds = False):
 
     return mse
 # In[6]:
-X_opt, theta_opt, Films, means_mat, R_mat, rating_mat, cv_rating_mat, cv_R_mat, predictions = \
-    main('25M_movies.csv', '25M_ratings.csv', 12)
+n_features = np.array([4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30])
+training_mse = np.zeros(len(n_features))
+cv_mse = np.zeros(len(n_features))
+
+for i in range(len(n_features)):
+    X_opt, theta_opt, Films, means_mat, R_mat, rating_mat, cv_rating_mat, cv_R_mat, predictions = \
+        main('25M_movies.csv', '25M_ratings.csv', n_features[i])
+        
+    training_mse[i] = mean_squared_error((predictions + means_mat), R_mat, rating_mat + means_mat, True)
+    cv_mse[i] = mean_squared_error(predictions + means_mat, cv_R_mat, cv_rating_mat + means_mat, True)
+    
+    del X_opt, theta_opt, Films, means_mat, R_mat, rating_mat, cv_rating_mat, cv_R_mat, predictions
 
 # In[6]:
 print(mean_squared_error((predictions + means_mat), R_mat, rating_mat + means_mat, True))
