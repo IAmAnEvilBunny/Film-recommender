@@ -34,20 +34,20 @@ def specify_my_ratings(n_films, Films):
     # My ratings
     my_ratings = np.zeros(n_films)
     my_ratings[1] = 4
-    my_ratings[98] = 2
     my_ratings[7] = 3
     my_ratings[12] = 5
     my_ratings[54] = 4
     my_ratings[64] = 5
     my_ratings[66] = 3
     my_ratings[69] = 5
+    my_ratings[98] = 2
     my_ratings[183] = 4
     my_ratings[226] = 5
     my_ratings[355] = 5
 
     for i in range(len(my_ratings)):
         if my_ratings[i] > 0:
-            print('Rated {} for {}\n'.format(my_ratings[i], Films[i-1]))
+            print('Rated {} for {}\n'.format(my_ratings[i], Films[i]))
 
     return my_ratings
 # In[3]:
@@ -77,7 +77,7 @@ def main(movie_file, ratings_file, n_features, reg_lambda=10):
         ids[i] is the film id corresponding to the film with title Films[i]
     predictions : numpy.ndarray of floats
         Entry [i, j] is the predicted score for user j for the film with
-        id i
+        title Films[i]
 
     """
     # Format data, see format_data for details
@@ -431,6 +431,24 @@ def read_files(movie_file, ratings_file):
 
 
 def reindex(n_films, old_indices, ids):
+    # Reindexes films from their film-id to the index of the array ids
+    # corresponding to their id, so that every film has an id between 0 and
+    # n_films-1
+    # Faster version I stole from stack exchange
+
+    values = np.arange(n_films)  # Matching array of new indices for ids
+    mapping_ar = np.zeros(ids.max()+1, dtype=values.dtype)
+    mapping_ar[ids] = values
+
+    # Entry i in mapping_ar correponds to the value we'd like to replace
+    # entries in old_indices equal to i with
+
+    new_indices = mapping_ar[old_indices]
+
+    return new_indices
+
+
+def old_reindex(n_films, old_indices, ids):
     # Reindexes films from their id to a number between 0 and n_films-1
     # There is probably a much better way to do this
     print('reindexing ' + str(n_films) + ' films')
@@ -474,4 +492,4 @@ def vec_gradients(Parameters, Y, R, users, n_films, n_features, reg_lambda):
 
 # In[6]:
 X_opt, theta_opt, Films, means_mat, R_mat, rating_mat, cv_rating_mat, cv_R_mat, predictions, ids = \
-        main('25M_movies.csv', '25M_ratings.csv', 10, 10)
+        main('movies.csv', 'ratings.csv', 10, 10)
