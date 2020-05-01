@@ -113,7 +113,7 @@ def main(movie_file, ratings_file, n_features, reg_lambda=10):
     del ratings  # Clear up memory space
 
     # ...and for cv set
-    print('Creating training set rating matrices...')
+    print('Creating cv set rating matrices...')
     cv_R_mat, cv_rating_mat = R_and_rating_mat(cv_ratings, n_films, users)
     del cv_ratings  # Clear up memory space
 
