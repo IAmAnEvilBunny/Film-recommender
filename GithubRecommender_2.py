@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Recommender System
+Recommender System.
 
 Created on Thu Apr 16 22:25:47 2020
 
@@ -16,45 +16,41 @@ F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets:
     https://doi.org/10.1145/2827872
 
 """
-
-# In[1]:
-
 import numpy as np
-
+import pandas as pd
 import random
-
 import scipy
-from scipy import optimize
-
+import scipy.optimize
 from tqdm import tqdm
-# In[2]:
 
 
-def specify_my_ratings(n_films, Films):
+# TODO: add docstring
+def specify_my_ratings(n_films, films):
     # My ratings
     my_ratings = np.zeros(n_films)
-    my_ratings[1] = 4
-    my_ratings[7] = 3
-    my_ratings[12] = 5
-    my_ratings[54] = 4
-    my_ratings[64] = 5
-    my_ratings[66] = 3
-    my_ratings[69] = 5
-    my_ratings[98] = 2
-    my_ratings[183] = 4
-    my_ratings[226] = 5
-    my_ratings[355] = 5
+    # film_id, rating
+    rated_films = np.array([[1, 4],
+                            [7, 3],
+                            [12, 5],
+                            [54, 4],
+                            [64, 5],
+                            [66, 3],
+                            [69, 5],
+                            [98, 2],
+                            [183, 4],
+                            [226, 5],
+                            [355, 5]])
 
-    for i in range(len(my_ratings)):
-        if my_ratings[i] > 0:
-            print('Rated {} for {}\n'.format(my_ratings[i], Films[i]))
+    my_ratings[rated_films[:, 0]] = rated_films[:, 1]
+
+    for i in rated_films[:, 0]:
+        print('Rated {} for {}\n'.format(my_ratings[i], films[i]))
 
     return my_ratings
-# In[3]:
 
 
 def main(movie_file, ratings_file, n_features, reg_lambda=10):
-    """Recommends films based on your ratings and those of other users
+    """Recommends films based on your ratings and those of other users.
 
     Optional extended description
 
@@ -66,7 +62,7 @@ def main(movie_file, ratings_file, n_features, reg_lambda=10):
         Name of file containing ratings
     n_features : int
         Number of features associated with each film to be optimised
-    reg_lambda : int
+    reg_lambda : int, optional
         Regularisation parameter. Prevents overfitting.
 
     Returns
@@ -81,23 +77,23 @@ def main(movie_file, ratings_file, n_features, reg_lambda=10):
 
     """
     # Format data, see format_data for details
-    Films, ids, ratings = read_files(movie_file, ratings_file)
+    films, ids, ratings = read_files(movie_file, ratings_file)
 
     # Useful values
-    n_films = len(Films)  # Number of different films
+    n_films = len(films)  # Number of different films
     users = int(ratings[-1, 0]) + 1  # Number of users
     print('Initial data contains ratings for {} films across {} users'.format(
             n_films, users))
 
     # Reindex films
-    ratings[:, 1] = reindex(n_films, ratings[:, 1], ids)
+    ratings[:, 1] = reindex(n_films, ratings[:, 1].astype(np.int), ids)
 
     # Divide data into training set, cross validation set and test set
     ratings, cv_ratings, test_ratings = divide_data(ratings, 20, 10)
 
     # Add in my ratings, I will be user 0, this also means we can start
     # indexing users from 0
-    my_ratings = specify_my_ratings(n_films, Films)
+    my_ratings = specify_my_ratings(n_films, films)
     i_rated = np.where(my_ratings != 0)[0]  # Indices of films I rated
 
     # Add a column of zeros to specify I am user 0, and add film indices
@@ -118,8 +114,8 @@ def main(movie_file, ratings_file, n_features, reg_lambda=10):
     del cv_ratings  # Clear up memory space
 
     # Compress data (remove data corresponding to films with very few ratings)
-    Films, ids, R_mat, rating_mat, cv_R_mat, cv_rating_mat, n_films =\
-        compress(R_mat, rating_mat, cv_R_mat, cv_rating_mat, Films, ids)
+    films, ids, R_mat, rating_mat, cv_R_mat, cv_rating_mat, n_films =\
+        compress(R_mat, rating_mat, cv_R_mat, cv_rating_mat, films, ids)
 
     # Normalise the ratings matrix and obtain the mean score for each film,
     # as well as the total number of people who rated each film
@@ -160,7 +156,7 @@ def main(movie_file, ratings_file, n_features, reg_lambda=10):
     print('Compared to {} when simpling using mean scores'.format(
             mean_squared_error(means_mat, cv_R_mat, cv_rating_mat, True)))
 
-    return X_opt, theta_opt, Films, means_mat, R_mat, rating_mat, \
+    return X_opt, theta_opt, films, means_mat, R_mat, rating_mat, \
         cv_rating_mat, cv_R_mat, predictions, ids
 # In[5]:
 
@@ -204,11 +200,11 @@ def cost(Parameters, Y, R, users, films, features, reg_lambda):
     errors2 = (X @ theta.T * R - Y)**2
 
     # Calculate regularisation terms
-    reg_theta = sum(sum(theta**2))
-    reg_X = sum(sum(X**2))
+    reg_theta = np.sum(theta**2)
+    reg_X = np.sum(X**2)
 
     # Putting it all together
-    J = 1/2 * sum(sum(errors2)) + reg_lambda/2 * (reg_theta + reg_X)
+    J = 1/2 * np.sum(errors2) + reg_lambda/2 * (reg_theta + reg_X)
 
     # Track progress
     print(J)
@@ -410,13 +406,30 @@ def read_files(movie_file, ratings_file):
         Rating information corresponding to columns 1-3 of rating_file
 
     """
+    # START COMMENT
+    # Never use np.loadtxt for large files, it is slow an. Either use pandas
+    # or the default python open() function
+    # If you call open, you need to close the stream. The easiest way is
+    # with open(movie_file) as file:
+    #     file.
+    # python will take care of calling closing after the with statement closes
+    # END COMMENT
     # Read in film names and ids
-    file = open(movie_file, encoding="utf8")
-    Films = np.loadtxt(file, delimiter=',', dtype='str', skiprows=1,
-                       usecols=(1))
+    ids, films = pd.read_csv(movie_file,
+                             encoding='utf8',
+                             sep=',',
+                             header=None,
+                             skiprows=1,
+                             usecols=(0, 1)).values.T
 
-    file = open(movie_file, encoding="utf8")
-    ids = np.loadtxt(file, delimiter=',', dtype='int', skiprows=1, usecols=(0))
+    # cast ids to ints
+    ids = ids.astype(np.int)
+
+    # START COMMENT
+    # If the allowed ratings are only 0, 0.5, 1, 1.5, .., 4.5, 5
+    # I recommend to use integers from 0 to 10. Then you can cast the whole
+    # ratings object to int type
+    # END COMMENT
 
     # Read in ratings
     # Column 0 indicates user index, column 1 the film index and column 2
@@ -425,9 +438,10 @@ def read_files(movie_file, ratings_file):
     print('Reading in ratings...')
     ratings = np.loadtxt(file, delimiter=',', dtype='float', usecols=(0, 1, 2),
                          skiprows=1, max_rows=3000000)
+    print(ratings)
     print('Done !')
 
-    return Films, ids, ratings
+    return films, ids, ratings
 
 
 def reindex(n_films, old_indices, ids):
@@ -435,6 +449,7 @@ def reindex(n_films, old_indices, ids):
     # corresponding to their id, so that every film has an id between 0 and
     # n_films-1
     # Faster version I stole from stack exchange
+    # COMMENT: that is fine, but better cite the author ;)
 
     values = np.arange(n_films)  # Matching array of new indices for ids
     mapping_ar = np.zeros(ids.max()+1, dtype=values.dtype)
@@ -462,7 +477,7 @@ def old_reindex(n_films, old_indices, ids):
 def unpack(Parameters, users, n_films, n_features):
     # Unpacks parameter vector into X and theta matrices
     n_X = n_films * n_features
-    X = Parameters[0:n_X].reshape(n_films, n_features)
+    X = Parameters[:n_X].reshape(n_films, n_features)
     theta = Parameters[n_X:].reshape(users, n_features)
 
     return X, theta
@@ -490,6 +505,6 @@ def vec_gradients(Parameters, Y, R, users, n_films, n_features, reg_lambda):
     return gradients
 
 
-# In[6]:
-X_opt, theta_opt, Films, means_mat, R_mat, rating_mat, cv_rating_mat, cv_R_mat, predictions, ids = \
-        main('movies.csv', 'ratings.csv', 10, 10)
+if __name__ == '__main__':
+    X_opt, theta_opt, Films, means_mat, R_mat, rating_mat, cv_rating_mat, cv_R_mat, predictions, ids = \
+            main('movies.csv', 'ratings.csv', 10, 10)
